@@ -30,7 +30,8 @@ def readInputFile(filename):
         f.readline()
 
         #Next two lines contain our task processing times and machine speeds
-        tasks = {i : int(t) for i, t in enumerate(f.readline().split())}
+        #Note: tasks are 1 indexed
+        tasks = {i + 1 : int(t) for i, t in enumerate(f.readline().split())}
         #Make sure to put machine number with its speed
         machines = {i : int(s) for i, s in enumerate(f.readline().split())}
 
