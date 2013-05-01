@@ -9,7 +9,7 @@ def readInputFile(filename):
 
         #Next two lines contain our task processing times and machine speeds
         #Note: tasks are 1 indexed
-        tasks = {i + 1 : int(t) for i, t in enumerate(f.readline().split())}
+        tasks = {i : int(t) for i, t in enumerate(f.readline().split())}
         #Make sure to put machine number with its speed
         machines = {i : int(s) for i, s in enumerate(f.readline().split())}
 
@@ -17,7 +17,7 @@ def readInputFile(filename):
 
 def parseResults(f):
     lines = f.read().splitlines()
-    reported_runtime = int(lines.pop(-1))
+    reported_runtime = float(lines.pop(-1))
     results = {m: [int(t) for t in ts.split()] for m, ts in enumerate(lines)}
 
     return results, reported_runtime
@@ -85,6 +85,3 @@ if __name__ == '__main__':
         print("Result input failed")
     else:
         print("Result input accepted")
-
-
-

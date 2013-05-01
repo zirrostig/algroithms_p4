@@ -1,6 +1,6 @@
-#/usr/bin/python
+#!/usr/bin/python
 import sys
-
+import math
 
 def distributeWorkload(tasks, machines):
     """Given a list of tasks and machines to assign them to, distributes the
@@ -18,7 +18,31 @@ def distributeWorkload(tasks, machines):
     """
     assignments = {}
 
-    #Put code here
+    workload = sum(tasks.values())
+    power = sum(machines.values())
+    multiplier = workload / power
+    best_dist = {m : (multiplier * s) for m, s in machines.items()}
+
+    #Assign "Perfect" values
+    for t in tasks:
+        if tasks[t] in best_dist.values():
+            for m, i in best_dist.items():
+                if i == tasks[t] and m not in assignments:
+                    assignments[m] = [t]
+                    tasks.pop(t)
+                    machines.pop(m)
+
+    sorted_tasks = sorted(tasks.items(), key=lambda x: x[1], reverse=True)
+    sorted_machines = sorted(machines.items(), key=lambda x: x[1], reverse=True)
+
+    for m, s in sorted_machines:
+        workassigned = 0
+        ts = []
+        while sorted_tasks and abs(best_dist[m] - workassigned) > abs (best_dist[m] - workassigned - sorted_tasks[0][1]):
+            workassigned += sorted_tasks[0][1]
+            ts.append(sorted_tasks.pop(0)[0])
+        assignments[m] = ts
+
 
     return assignments
 
@@ -31,7 +55,7 @@ def readInputFile(filename):
 
         #Next two lines contain our task processing times and machine speeds
         #Note: tasks are 1 indexed
-        tasks = {i + 1 : int(t) for i, t in enumerate(f.readline().split())}
+        tasks = {i : int(t) for i, t in enumerate(f.readline().split())}
         #Make sure to put machine number with its speed
         machines = {i : int(s) for i, s in enumerate(f.readline().split())}
 
