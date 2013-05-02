@@ -95,8 +95,8 @@ def distribute_with_annealing(tasks, machines, temp=None):
 
         return best_assign
 
-    def anneal(dist, temp):
-        machine_count = len(dist)
+    def anneal(temp):
+        machine_count = len(assignments)
         orig_temp = temp
         while temp > 0:
             #Pick two machines
@@ -108,8 +108,8 @@ def distribute_with_annealing(tasks, machines, temp=None):
 
 
             #Reducing number of lookups
-            m1s = dist[m1]
-            m2s = dist[m2]
+            m1s = assignments[m1]
+            m2s = assignments[m2]
 
             #Check if both machines are empty
             if (not m1s) and (not m2s):
@@ -136,75 +136,50 @@ def distribute_with_annealing(tasks, machines, temp=None):
             else:
                 t2_time = 0
 
+            m1off = m1ts - best_dist[m1]
+            m2off = m2ts - best_dist[m2]
 
-            #Determine if the machines should swap tasks, steal, or do nothing
-            #Purely task sums for the 'new' assignments
-            m1_run_steal = m1ts + t2_time
-            m1_run_give = m1ts - t1_time
-            m1_run_swap = m1ts - t1_time + t2_time
-            m2_run_steal = m2ts + t1_time
-            m2_run_give = m2ts - t2_time
-            m2_run_swap = m2ts - t2_time + t1_time
+            #Swap
+            m1off_swap = t2_time - t1_time
+            m2off_swap = t1_time - t2_time
 
-            #Gains/Losses for each machine
-            m1_steal_delta = (m1_run_steal -  m1ts) / m1_speed
-            m1_give_delta = (m1_run_give  -  m1ts) / m1_speed
-            m1_swap_delta = (m1_run_swap  -  m1ts) / m1_speed
-            m2_steal_delta = (m2_run_steal -  m2ts) / m2_speed
-            m2_give_delta = (m2_run_give  -  m2ts) / m2_speed
-            m2_swap_delta = (m2_run_swap  -  m2ts) / m2_speed
+            #m1 steals from m2
+            m1off_steal = t2_time
+            m2off_give = -t2_time
 
-            #Our gains (or losses) from each operation
-            steal1 = m1_steal_delta + m2_give_delta
-            steal2 = m1_give_delta + m2_steal_delta
-            swap = m1_swap_delta + m2_swap_delta
+            #m2 steals from m1
+            m2off_steal = t1_time
+            m1off_give = -t1_time
 
-            # print(m1s)
-            # print(t1, t1_time)
-            # print(m1_steal_delta, m1_give_delta, m1_swap_delta)
-            # print(m2s)
-            # print(t2, t2_time)
-            # print(m2_steal_delta, m2_give_delta, m2_swap_delta)
-
-            #Choose the best
-            if m1s and m2s:
-                best = max((swap, 0), (steal1, 1), (steal2, 2))
-            elif m1s:
-                best = (steal1, 1)
-            elif m2s:
-                best = (steal2, 2)
-
-            #execute the best if it helps us
-            # print(best)
-            # print()
-            if best[0] < 0:
-                if best[1] == 0:
-                    #Swap
-                    dist[m1].remove(t1)
-                    dist[m2].append(t1)
-                    dist[m2].remove(t2)
-                    dist[m1].append(t2)
-                elif best[1] == 1:
-                    #m1 Steals from m2
-                    dist[m1].append(t2)
-                    dist[m2].remove(t2)
-                elif best[1] == 2:
-                    #m2 Steals from m1
-                    dist[m2].append(t1)
-                    dist[m1].remove(t1)
+            #Try swaping first
+            if m1s and m2s and (abs(m1off + m1off_swap) < abs(m1off)) and (abs(m2off + m2off_swap) < abs(m2off)):
+                #Swap
+                # print("<=>", file=sys.stderr)
+                assignments[m1].remove(t1)
+                assignments[m2].append(t1)
+                assignments[m2].remove(t2)
+                assignments[m1].append(t2)
+            elif m2s and (abs(m1off + t2_time) < abs(m1off)) and (abs(m2off - t2_time) < abs(m2off)):
+                #m1 Steals from m2
+                # print("<-", file=sys.stderr)
+                assignments[m1].append(t2)
+                assignments[m2].remove(t2)
+            elif m1s and (abs(m1off - t1_time) < abs(m1off)) and (abs(m2off + t2_time) < abs(m2off)):
+                #m2 Steals from m1
+                # print("->", file=sys.stderr)
+                assignments[m2].append(t1)
+                assignments[m1].remove(t1)
 
             #Drop temp
             temp -= 1
-        return dist
 
     #Assign a temperature if none was given
     if temp is None:
-        temp = int(100000000 / len(tasks))
-        print(temp, file=sys.stderr)
+        temp = 1000000
 
     #Get a random distribution to start with
     assignments = shuf_assign(100)
-    optimized_dist = anneal(assignments, temp)
+    anneal(temp)
 
     return assignments
 
