@@ -43,8 +43,10 @@ if __name__ == '__main__':
 
     #Check machine count
     if len(results) > len(machines):
-        print('Results is using too many machines')
+        print("Machine Count.................FAILED")
         failed = True
+    else:
+        print("Machine Count.................PASSED")
 
     #Check task usage
     usedTasks = [t for ts in results.values() for t in ts]
@@ -56,14 +58,24 @@ if __name__ == '__main__':
         for i in set(used):
             used.remove(i)
 
-        print("Tasks %s used more than once" % list(set(used)))
+        print("Duplicate Assignment..........FAILED - Tasks %s used more than once" % list(set(used)))
         failed = True
+    else:
+        print("Duplicate Assignment..........PASSED")
+
 
     #Make sure all tasks are used
+    not_used = []
     for t in tasks.keys():
         if t not in usedTasks:
-            print("Task %d not used in result" % t)
+            not_used.append(t)
             failed = True
+
+    if not_used:
+        print("Task Usage....................FAILED - Tasks %s not used in result" % not_used)
+    else:
+        print("Task Usage....................PASSED")
+
 
 
     #Calculate runtime
@@ -77,10 +89,14 @@ if __name__ == '__main__':
             total_time /= machines[m]
             actual_time = max(total_time, actual_time)
 
-    if actual_time != reported_time:
-        print("Reported time of %0.4f does not match actual time of %0.4f" % (reported_time, actual_time))
+    #Using a slight fuzzy comparison since these are floating point values
+    if abs(actual_time - reported_time) > 0.0001:
+        print("Reported Time.................FAILED - Reported %0.4f != Calculated %0.4f" %(reported_time, actual_time))
         failed = True
+    else:
+        print("Reported Time.................PASSED - Reported %0.4f == Calculated %0.4f" %(reported_time, actual_time))
 
+    print()
     if failed:
         print("Result input failed")
     else:
