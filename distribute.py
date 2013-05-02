@@ -23,18 +23,18 @@ def distributeWorkload(tasks, machines):
     power = sum(machines.values())
     multiplier = workload / power
 
-    print(multiplier)
+    # print(multiplier)
     #Int so that our "Perfect" value can actually be matched to a task
     best_dist = {m : int(multiplier * s) for m, s in machines.items()}
 
     #Assign "Perfect" values
-    for t in tasks:
-        if tasks[t] in best_dist.values():
-            for m, i in best_dist.items():
-                if i == tasks[t] and m not in assignments:
-                    assignments[m] = [t]
-                    tasks.pop(t)
-                    machines.pop(m)
+    # for t in tasks:
+    #     if tasks[t] in best_dist.values():
+    #         for m, i in best_dist.items():
+    #             if i == tasks[t] and m not in assignments:
+    #                 assignments[m] = [t]
+    #                 tasks.pop(t)
+    #                 machines.pop(m)
 
     sorted_tasks = sorted(tasks.items(), key=lambda x: x[1], reverse=True)
     sorted_machines = sorted(machines.items(), key=lambda x: x[1], reverse=True)
@@ -55,7 +55,7 @@ def distribute_with_annealing(tasks, machines, temp=None):
     workload = sum(tasks.values())
     power = sum(machines.values())
     multiplier = workload / power
-    best_dist = {m : int(multiplier * s) for m, s in machines.items()}
+    best_dist = {m : multiplier * s for m, s in machines.items()}
     print(multiplier, file=sys.stderr)
 
     def shuf_assign(min_runs, max_runs):
@@ -104,6 +104,27 @@ def distribute_with_annealing(tasks, machines, temp=None):
 
         return best_assign
 
+    def sort_assign():
+        assignments = distributeWorkload(tasks, machines)
+
+        #Check for full assignment
+        used_tasks = [t for tvs in assignments.values() for t in tvs]
+        not_used = []
+        for tk in tasks.keys():
+            if tk not in used_tasks:
+                not_used.append(tk)
+
+        if not_used:
+            for tk in not_used:
+                m = random.randint(0, len(machines) - 1)
+                if m in assignments:
+                    assignments[m].append(tk)
+                else:
+                    assignments[m] = [tk]
+
+        return assignments
+
+
     def anneal(dist, temp):
         machine_count = len(dist)
         orig_temp = temp
@@ -145,20 +166,14 @@ def distribute_with_annealing(tasks, machines, temp=None):
             else:
                 t2_time = 0
 
+            max_run_time = max(m1ts / m1_speed, m2ts / m2_speed)
+
             m1off = m1ts - best_dist[m1]
             m2off = m2ts - best_dist[m2]
 
             #Swap
             m1off_swap = t2_time - t1_time
             m2off_swap = t1_time - t2_time
-
-            #m1 steals from m2
-            m1off_steal = t2_time
-            m2off_give = -t2_time
-
-            #m2 steals from m1
-            m2off_steal = t1_time
-            m1off_give = -t1_time
 
             #Try swaping first
             if m1s and m2s and \
@@ -170,17 +185,26 @@ def distribute_with_annealing(tasks, machines, temp=None):
                 dist[m2].append(t1)
                 dist[m2].remove(t2)
                 dist[m1].append(t2)
-            elif m2s and (abs(m1off + t2_time) < abs(m1off)):
+            elif m2s and max((m1ts + t2_time) / m1_speed, (m2ts - t2_time) / m2_speed) < max_run_time:
                 #m1 Steals from m2
                 # print("<-", file=sys.stderr)
                 dist[m1].append(t2)
                 dist[m2].remove(t2)
-            elif m1s and (abs(m1off - t1_time) < abs(m1off)):
+            elif m1s and max((m2ts + t1_time) / m2_speed, (m1ts - t1_time) / m1_speed) < max_run_time:
                 #m2 Steals from m1
                 # print("->", file=sys.stderr)
                 dist[m2].append(t1)
                 dist[m1].remove(t1)
-            # elif m1s and m2s and (abs(m1off + m1off_swap
+            elif m1s and m2s and \
+                 math.exp(-(max(m1off + m1off_swap, m2off + m2off_swap))/(temp/(0.01*orig_temp))) > random.random():
+                 # (abs(m1off + m1off_swap) < 0.1 * best_dist[m1]) and \
+                 # (abs(m2off + m2off_swap) < 0.1 * best_dist[m2]) and \
+                #Swap anyways
+                # print("<<->>", temp, file=sys.stderr)
+                dist[m1].remove(t1)
+                dist[m2].append(t1)
+                dist[m2].remove(t2)
+                dist[m1].append(t2)
 
             #Drop temp
             temp -= 1
@@ -188,13 +212,17 @@ def distribute_with_annealing(tasks, machines, temp=None):
 
     #Assign a temperature if none was given
     if temp is None:
-        temp = 1000000
+        temp = (len(tasks)**3)
+        temp = min(temp, 1000000)
+        # temp = 1000000
 
     #Get a random distribution to start with
-    assignments = shuf_assign(100, 10000)
-    assignments = anneal(assignments, temp)
+    assignmentshuf = shuf_assign(100, 10000)
+    # assignmentsort = sort_assign()
+    assignmentshuf = anneal(assignmentshuf, temp)
+    # assignmentsort = anneal(assignmentsort, temp)
 
-    return assignments
+    return assignmentshuf
 
 def readInputFile(filename):
     with open(filename, 'r') as f:
@@ -211,6 +239,19 @@ def readInputFile(filename):
     return tasks, machines
 
 
+def calc_run_time(res, tasks, machines):
+    max_time = 0
+    for m in res:
+        #Calculate runtime
+        total_time = 0
+        for t in res[m]:
+            total_time += tasks[t]
+
+        total_time /= machines[m]
+        max_time = max(total_time, max_time)
+
+    return max_time
+
 def printResults(res, tasks, machines):
     #First of all sort our result
     res_keys = sorted(res.keys())
@@ -221,16 +262,7 @@ def printResults(res, tasks, machines):
     for m in res_keys:
         print(" ".join(map(str, res[m])))
 
-        #Calculate runtime
-        total_time = 0
-        for t in res[m]:
-            total_time += tasks[t]
-
-        total_time /= machines[m]
-        max_time = max(total_time, max_time)
-
-    print("%0.4f" % max_time)
-
+    print("%0.4f" % calc_run_time(res, tasks, machines))
 
 def main():
     #Get file from args
@@ -241,10 +273,13 @@ def main():
 
     #Distribute tasks to machines
     # result = distributeWorkload(tasks, machines)
-    result = distribute_with_annealing(tasks, machines)
+    # result1 = distributeWorkload(tasks, machines)
+    result2 = distribute_with_annealing(tasks, machines)
 
     #Output our results
-    printResults(result, tasks, machines)
+    # printResults(result1, tasks, machines)
+    # print()
+    printResults(result2, tasks, machines)
 
 
 if __name__ == '__main__':
