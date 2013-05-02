@@ -58,10 +58,10 @@ def distribute_with_annealing(tasks, machines, temp=None):
     best_dist = {m : int(multiplier * s) for m, s in machines.items()}
     print(multiplier, file=sys.stderr)
 
-    def shuf_assign(runs):
+    def shuf_assign(min_runs, max_runs):
         best_run = None
         i = 0
-        while not (i > runs and best_run is not None):
+        while (i < max_runs) and (not (i > min_runs and best_run is not None)):
             i += 1
             #Shuffle everything up
             tsks = list(tasks.items())
@@ -93,10 +93,19 @@ def distribute_with_annealing(tasks, machines, temp=None):
                 best_run = run_time
                 best_assign = assignments.copy()
 
+            if i == max_runs - 1:
+                for tk in tsks:
+                    m = random.randint(0, len(machines) - 1)
+                    if m in assignments:
+                        assignments[m].append(tk[0])
+                    else:
+                        assignments[m] = [tk[0]]
+                best_assign = assignments
+
         return best_assign
 
-    def anneal(temp):
-        machine_count = len(assignments)
+    def anneal(dist, temp):
+        machine_count = len(dist)
         orig_temp = temp
         while temp > 0:
             #Pick two machines
@@ -108,8 +117,8 @@ def distribute_with_annealing(tasks, machines, temp=None):
 
 
             #Reducing number of lookups
-            m1s = assignments[m1]
-            m2s = assignments[m2]
+            m1s = dist[m1]
+            m2s = dist[m2]
 
             #Check if both machines are empty
             if (not m1s) and (not m2s):
@@ -152,34 +161,38 @@ def distribute_with_annealing(tasks, machines, temp=None):
             m1off_give = -t1_time
 
             #Try swaping first
-            if m1s and m2s and (abs(m1off + m1off_swap) < abs(m1off)) and (abs(m2off + m2off_swap) < abs(m2off)):
+            if m1s and m2s and \
+               ((m1off + m1off_swap < 0) or (abs(m1off + m1off_swap) < abs(m1off))) and \
+               ((m2off + m2off_swap < 0) or (abs(m2off + m2off_swap) < abs(m2off))):
                 #Swap
                 # print("<=>", file=sys.stderr)
-                assignments[m1].remove(t1)
-                assignments[m2].append(t1)
-                assignments[m2].remove(t2)
-                assignments[m1].append(t2)
-            elif m2s and (abs(m1off + t2_time) < abs(m1off)) and (abs(m2off - t2_time) < abs(m2off)):
+                dist[m1].remove(t1)
+                dist[m2].append(t1)
+                dist[m2].remove(t2)
+                dist[m1].append(t2)
+            elif m2s and (abs(m1off + t2_time) < abs(m1off)):
                 #m1 Steals from m2
                 # print("<-", file=sys.stderr)
-                assignments[m1].append(t2)
-                assignments[m2].remove(t2)
-            elif m1s and (abs(m1off - t1_time) < abs(m1off)) and (abs(m2off + t2_time) < abs(m2off)):
+                dist[m1].append(t2)
+                dist[m2].remove(t2)
+            elif m1s and (abs(m1off - t1_time) < abs(m1off)):
                 #m2 Steals from m1
                 # print("->", file=sys.stderr)
-                assignments[m2].append(t1)
-                assignments[m1].remove(t1)
+                dist[m2].append(t1)
+                dist[m1].remove(t1)
+            # elif m1s and m2s and (abs(m1off + m1off_swap
 
             #Drop temp
             temp -= 1
+        return dist
 
     #Assign a temperature if none was given
     if temp is None:
         temp = 1000000
 
     #Get a random distribution to start with
-    assignments = shuf_assign(100)
-    anneal(temp)
+    assignments = shuf_assign(100, 10000)
+    assignments = anneal(assignments, temp)
 
     return assignments
 
